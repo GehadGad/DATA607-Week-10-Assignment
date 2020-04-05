@@ -1,0 +1,206 @@
+---
+title: "DATA 607 week 10 Assignment"
+output: html_document
+---
+
+***Gehad Gad***
+
+***April 4th, 2020***
+
+
+**Assignment Instruction**
+
+In Text Mining with R, https://www.tidytextmining.com/sentiment.html, 
+Chapter 2 looks at Sentiment Analysis.  In this assignment, you should start by getting the primary example code from chapter 2 working in an R Markdown document.  You should provide a citation to this base code.You’re then asked to extend the code in two ways:
+
+1. Work with a different corpus of your choosing, and
+
+2. Incorporate at least one additional sentiment lexicon (possibly from another R package that you’ve found through research).
+
+```{r}
+#Import libraries
+library(tidytext)
+library(dplyr)
+library(NLP)
+library(tm)
+library(SnowballC)
+library(fastDummies)
+library(dplyr)
+library(plyr)
+library(ggplot2)
+library(tidyverse)
+
+```
+
+
+```{r}
+get_sentiments("afinn")
+```
+
+
+
+
+```{r}
+
+get_sentiments("bing")
+```
+
+
+
+
+```{r}
+get_sentiments("nrc")
+
+```
+
+
+```{r}
+#Import the data.
+WomensReviews <- read.csv("WomensE-CommerceReviews.csv")
+
+#Data source: https://www.kaggle.com/nicapotato/womens-ecommerce-clothing-reviews#Womens%20Clothing%20E-Commerce%20Reviews.csv
+
+head(WomensReviews)
+
+```
+
+
+
+```{r}
+#Create a subset for the data with some columns removed.
+
+Data <- subset(WomensReviews, select = -c(X, Clothing.ID, Title,Rating, Positive.Feedback.Count, Division.Name, Class.Name))
+
+head(Data)
+
+```
+
+```{r}
+Data %>%
+  ggplot(aes(x = factor(Recommended.IND), fill = Recommended.IND)) +
+    geom_bar(alpha = 0.8) +
+    guides(fill = FALSE)
+```
+
+The graph above displays the distribution of the possitive reviews (1) in the data.
+
+```{r}
+Data %>%
+  ggplot(aes(x = factor(Department.Name), fill = Department.Name)) +
+    geom_bar(alpha = 0.8) +
+    guides(fill = FALSE)
+```
+
+The graph above shows the count or purchases of each department. We can see that (Tops) are the highest.
+
+```{r}
+
+hist(Data$Age)
+
+```
+
+The graph above shows the frequency of ages among purchases.Between 30-40 are the highest frequency.
+
+```{r}
+#Create a corpus of the data.
+corpus = Corpus(VectorSource(Data$Review.Text))
+corpus[[1]][1]
+Data$Recommended_IND[1]
+
+```
+
+
+```{r}
+#Make plain text and make it all lower case.
+corpus = tm_map(corpus, PlainTextDocument)
+corpus = tm_map(corpus, tolower)
+corpus[[1]][1] 
+```
+
+
+```{r}
+#Remove any punctuation marks
+corpus = tm_map(corpus, removePunctuation)
+corpus[[1]][1]
+```
+
+
+
+```{r}
+#Remove any stopwords. Stopwords are words that don't have a usefull meaning such as: (and, then, they, or, etc.)
+corpus = tm_map(corpus, removeWords, c("cloth", stopwords("english")))
+corpus[[1]][1]  
+```
+
+
+
+
+```{r}
+#Word stemming. Stemming words bring words to its root.
+
+corpus = tm_map(corpus, stemDocument)
+corpus[[1]][1]  
+frequencies = DocumentTermMatrix(corpus)
+```
+
+
+
+```{r}
+sparse = removeSparseTerms(frequencies, 0.995)
+tSparse = as.data.frame(as.matrix(sparse))
+colnames(tSparse) = make.names(colnames(tSparse))
+tSparse$recommended_id = Data$Recommended.IND
+tSparse$Age = Data$Age
+tSparse$Department.Name = Data$Department.Name
+prop.table(table(tSparse$recommended_id)) #73.6% is the baseline accuracy
+```
+
+The percentage of possitive reviews to negative is 0.8223623 to 0.1776377
+
+
+```{r}
+#Change column Department.Name to dummy variable
+FinalData<- fastDummies:: dummy_cols(tSparse)
+
+#Remove the Department.Name column after the step above.
+FinalData <- subset(FinalData, select = -c(Department.Name))
+
+#Get semntiment Analysis
+word_sentiment = FinalData %>% group_by(recommended_id) %>% summarise_each(funs(sum))
+
+```
+
+
+```{r}
+#Transpose the dataframe.
+word_sentiment = t(word_sentiment)
+(word_sentiment)
+```
+
+
+
+```{r}
+#The two steps below are for modelling and evaluation purpose.
+library(caTools)
+set.seed(100)
+split = sample.split(FinalData$recommended_id, SplitRatio = 0.7)
+trainSparse = subset(FinalData, split==TRUE)
+testSparse = subset(FinalData, split==FALSE)
+
+```
+
+
+```{r}
+x_train <- subset(trainSparse, select = -c(recommended_id))
+y_train <- subset(trainSparse, select = c(recommended_id))
+
+y_test <- subset(testSparse, select = c(recommended_id))
+x_test <- subset(testSparse, select = -c(recommended_id))
+```
+
+
+
+
+
+
+
